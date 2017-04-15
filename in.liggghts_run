@@ -59,7 +59,6 @@ variable        time equal step*dt
 #output information
 fix             extra1     all print 1000 "${time} ${vx1} ${vy1} ${vz1}" file ../DEM/post/velocity_tracer.txt title "%" screen no
 fix             extra2     all print 1000 "${time} ${x1}  ${y1}  ${z1}" file ../DEM/post/position_tracer.txt title "%" screen no
-#fix             extra3     all print 10 "${time} ${normalfx} ${normalfy} ${normalfz} ${normalfz}" file ../DEM/post/stress.txt title "%" screen no
 
 #fix             dumpStress all print 100  "${time} ${ForceX} ${ForceY} ${ForceZ}" file ../DEM/post/stressAnalysis.txt title "%" screen no
 
