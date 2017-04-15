@@ -1,0 +1,88 @@
+atom_style      granular
+atom_modify     map array sort 0 0
+communicate     single vel yes
+
+boundary        f f f
+newton          off
+
+units           si
+processors      2 2 2
+
+# read the restart file
+read_restart    ../DEM/post/restart/liggghts.restart
+
+neighbor        0.0025 bin
+neigh_modify    delay 0
+
+# Material properties required for granular pair styles
+fix         m1 all property/global kn peratomtypepair 1 10000. 
+fix         m2 all property/global kt peratomtypepair 1 10000. 
+fix         m3 all property/global gamman_abs peratomtypepair 1 0.0581590292771704
+fix         m4 all property/global gammat_abs peratomtypepair 1 0.6209303796953400
+fix         m5 all property/global coefficientFriction peratomtypepair 1 0.3
+
+# pair style
+pair_style gran model hooke/stiffness tangential history absolute_damping on limitForce on
+pair_coeff * *
+
+# timestep, gravity
+timestep    0.00001
+fix         gravi all gravity 9.81 vector 0.0 0.0 -1.0
+
+# walls
+fix         cylinder all mesh/surface/stress file meshes/cylinder.stl type 1 stress on
+fix         cylwalls all wall/gran model hooke/stiffness tangential history mesh n_meshes 1 meshes cylinder absolute_damping on limitForce on
+
+#variable stressMag 
+#variable ForceX equal f_cylinder[1]
+#variable ForceY equal f_cylinder[2]
+#variable ForceZ equal f_cylinder[3]
+compute  wf all wall/gran/local force_normal contactArea
+#fix      fwf all store/state 0 c_wf[1] c_wf[2] c_wf[3] c_wf[4]
+compute  fsum all reduce sum c_wf[1] c_wf[2] c_wf[3] c_wf[4] 
+variable normalfx  equal c_fsum[1]
+variable normalfy  equal c_fsum[2] 
+variable normalfz  equal c_fsum[3]
+variable contArea  equal c_fsum[4]
+
+# velocity information of particles
+variable vMag   atom sqrt(vx^2+vy^2+vz^2)
+variable zP     atom z
+variable        vx1  equal vx[1]
+variable        vy1  equal vy[1]
+variable        vz1  equal vz[1]
+variable        x1   equal x[1]
+variable        y1   equal y[1]
+variable        z1   equal z[1]
+variable        time equal step*dt
+
+#output information
+fix             extra1     all print 1000 "${time} ${vx1} ${vy1} ${vz1}" file ../DEM/post/velocity_tracer.txt title "%" screen no
+fix             extra2     all print 1000 "${time} ${x1}  ${y1}  ${z1}" file ../DEM/post/position_tracer.txt title "%" screen no
+#fix             extra3     all print 10 "${time} ${normalfx} ${normalfy} ${normalfz} ${normalfz}" file ../DEM/post/stress.txt title "%" screen no
+
+#fix             dumpStress all print 100  "${time} ${ForceX} ${ForceY} ${ForceZ}" file ../DEM/post/stressAnalysis.txt title "%" screen no
+
+# compute average velocity
+compute     avev      all reduce ave v_vMag
+compute     maxz      all reduce max v_zP
+fix         averV     all ave/time 1 10000 10000 c_avev file ../DEM/post/average_velocity.txt
+fix         averZ     all ave/time 1 10000 10000 c_maxz file ../DEM/post/average_z.txt
+
+# cfd coupling
+fix         cfd  all couple/cfd couple_every 10 mpi
+fix         cfd2 all couple/cfd/force/implicit
+#fix         cfd2 all couple/cfd/force/implicit CrankNicolson 0.5 
+#fix         cfd2 all couple/cfd/force
+
+# apply nve integration to all particles that are inserted as single particles
+fix         integr all nve/sphere 
+
+# fluid force
+compute     dragtotal all reduce sum f_dragforce[1] f_dragforce[2] f_dragforce[3]
+
+# output
+dump            dmp all custom 2000 ../DEM/post/dump*.liggghts_run id type x y z vx vy vz fx fy fz f_dragforce[1] f_dragforce[2] f_dragforce[3] radius 
+
+#dump            stress all mesh/vtk 100 ../DEM/post/wallstress*.vtk output face id stress cylinder 
+run 0
